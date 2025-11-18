@@ -2,10 +2,8 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Country } from './entities/country.entity';
-import {
-  COUNTRY_INFORMATION_PROVIDER,
-  CountryInformationProvider,
-} from '../external/rest-countries/country-information.provider';
+import { COUNTRY_INFORMATION_PROVIDER } from '../external/rest-countries/country-information.provider';
+import type { CountryInformationProvider } from '../external/rest-countries/country-information.provider';
 
 export type CountrySource = 'cache' | 'external';
 
