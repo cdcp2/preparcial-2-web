@@ -1,98 +1,118 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Travel Planner API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API REST construida con NestJS para planificar viajes. Centraliza la información de países obtenida desde [RestCountries](https://restcountries.com) y la almacena en SQLite como caché local, permitiendo crear planes asociados a países específicos.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Requisitos previos
 
-## Description
+- Node.js 20+ y npm
+- Nest CLI (opcional, facilita los comandos globales) `npm install -g @nestjs/cli`
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Puesta en marcha
 
-## Project setup
+1. Clonar el repositorio y entrar a `travel-planner-api/`.
+2. Instalar dependencias:
+   ```bash
+   npm install
+   ```
+3. Copiar variables de entorno y ajustarlas si es necesario:
+   ```bash
+   cp .env.example .env
+   # DATABASE_PATH indica la ruta del archivo SQLite (por defecto travel-planner.sqlite)
+   # REST_COUNTRIES_BASE_URL normalmente no se modifica
+   ```
+4. Ejecutar la API:
+   ```bash
+   # modo watch recomendado durante el desarrollo
+   npm run start:dev
 
+   # modo producción
+   npm run start:prod
+   ```
+La API queda disponible en `http://localhost:3000` (puerto configurable mediante `PORT`).
+
+## Descripción de módulos
+
+- **CountriesModule**: Gestiona los países, aplica la lógica de caché en SQLite y expone endpoints de consulta.
+- **TravelPlansModule**: Permite crear/listar/buscar planes de viaje asociados a un país existente.
+
+## Provider externo
+
+El módulo `RestCountriesModule` registra un provider (`COUNTRY_INFORMATION_PROVIDER`) que implementa la interfaz `CountryInformationProvider`. El servicio (`RestCountriesService`) consume el endpoint `GET /v3.1/alpha/{code}` pidiendo únicamente los campos requeridos (`cca3`, `name`, `region`, `subregion`, `capital`, `population`, `flags`). CountriesService inyecta esa abstracción y sólo conoce la interfaz, no los detalles HTTP.
+
+## Modelo de datos
+
+| Country                     | TravelPlan                                  |
+|----------------------------|----------------------------------------------|
+| `code` (PK, alpha-3)       | `id` (UUID, PK)                              |
+| `name`                     | `countryCode` (FK → Country.code)            |
+| `region`                   | `title`                                      |
+| `subregion`                | `startDate` (date)                           |
+| `capital`                  | `endDate` (date)                             |
+| `population`               | `notes` (text, opcional)                     |
+| `flagUrl`                  | `createdAt`                                  |
+| `createdAt`, `updatedAt`   | relación ManyToOne para incluir el Country   |
+
+## Endpoints principales
+
+### Countries
+
+| Método | Ruta                   | Descripción                                        |
+|--------|------------------------|----------------------------------------------------|
+| GET    | `/countries`           | Lista todos los países almacenados en SQLite.      |
+| GET    | `/countries/:code`     | Busca por código alpha-3; usa caché + RestCountries|
+
+Ejemplos:
 ```bash
-$ npm install
+curl http://localhost:3000/countries
+curl http://localhost:3000/countries/COL
+```
+La respuesta de `GET /countries/:code` incluye `source: "cache" | "external"` que indica el origen de la información.
+
+### Travel Plans
+
+| Método | Ruta                        | Descripción                                           |
+|--------|-----------------------------|-------------------------------------------------------|
+| POST   | `/travel-plans`             | Crea un plan verificando que el país exista en caché. |
+| GET    | `/travel-plans`             | Lista todos los planes registrados.                   |
+| GET    | `/travel-plans/:id`         | Obtiene un plan por su identificador UUID.            |
+
+Ejemplo de creación:
+```bash
+curl -X POST http://localhost:3000/travel-plans \
+  -H "Content-Type: application/json" \
+  -d '{
+    "countryCode": "COL",
+    "title": "Vacaciones",
+    "startDate": "2025-02-01",
+    "endDate": "2025-02-15",
+    "notes": "Visitar Medellín"
+  }'
 ```
 
-## Compile and run the project
+## Validación y DTOs
+
+- `ValidationPipe` global (`src/main.ts`) habilita `whitelist` y conversión implícita.
+- DTOs (`CreateTravelPlanDto`, `CountryResponseDto`, `TravelPlanResponseDto`) definen reglas de formato, longitud y fechas. Se usan `class-validator` y `class-transformer`.
+
+## Pruebas
 
 ```bash
-# development
-$ npm run start
+# Prueba unitaria mínima (AppModule compila)
+npm test -- --runInBand
 
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+# End-to-end (usa un provider fake y SQLite en memoria)
+npm run test:e2e -- --runInBand
 ```
+Pruebas manuales sugeridas:
+1. `GET /countries/COL` cuando no existe → debe traer de RestCountries y guardar.
+2. Repetir la consulta anterior → debe responder con `source: "cache"`.
+3. `POST /travel-plans` con un país existente → crea el plan y lo devuelve con el país embebido.
 
-## Run tests
+## Cómo funciona internamente
 
-```bash
-# unit tests
-$ npm run test
+1. **Diseño de modelos**: `Country` y `TravelPlan` (TypeORM) cubren todos los campos solicitados y relacionan los planes con el campo `countryCode`.
+2. **Módulo de países**: busca en SQLite, usa el provider externo en caso de fallo, persiste los campos necesarios e informa el origen de la respuesta.
+3. **Provider externo**: abstrae RestCountries permitiendo reemplazar la implementación sin modificar `CountriesService`.
+4. **Módulo de planes**: valida la entrada, garantiza que el país existe (creándolo vía CountriesModule si hace falta) y persiste el plan.
 
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Con esto, el proyecto cumple los requerimientos del preparcial: API modular, caché local, provider dedicado, DTOs con validación, endpoints CRUD básicos y documentación mínima para evaluación.
