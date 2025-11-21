@@ -1,9 +1,15 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Country } from './entities/country.entity';
 import { COUNTRY_INFORMATION_PROVIDER } from '../external/rest-countries/country-information.provider';
 import type { CountryInformationProvider } from '../external/rest-countries/country-information.provider';
+import { TravelPlan } from '../travel-plans/entities/travel-plan.entity';
 
 export type CountrySource = 'cache' | 'external';
 
@@ -12,6 +18,8 @@ export class CountriesService {
   constructor(
     @InjectRepository(Country)
     private readonly countriesRepository: Repository<Country>,
+    @InjectRepository(TravelPlan)
+    private readonly travelPlansRepository: Repository<TravelPlan>,
     @Inject(COUNTRY_INFORMATION_PROVIDER)
     private readonly countryInformationProvider: CountryInformationProvider,
   ) {}
@@ -62,6 +70,31 @@ export class CountriesService {
   async ensureCountryExists(alpha3Code: string): Promise<Country> {
     const result = await this.findByAlpha3(alpha3Code);
     return result.country;
+  }
+
+  async deleteByAlpha3(alpha3Code: string): Promise<void> {
+    const normalizedCode = this.normalizeCode(alpha3Code);
+    const country = await this.countriesRepository.findOne({
+      where: { code: normalizedCode },
+    });
+
+    if (!country) {
+      throw new NotFoundException(
+        `Country with code ${normalizedCode} was not found`,
+      );
+    }
+
+    const existingPlans = await this.travelPlansRepository.count({
+      where: { countryCode: normalizedCode },
+    });
+
+    if (existingPlans > 0) {
+      throw new BadRequestException(
+        `Country ${normalizedCode} cannot be deleted because it has associated travel plans`,
+      );
+    }
+
+    await this.countriesRepository.remove(country);
   }
 
   private normalizeCode(code: string): string {

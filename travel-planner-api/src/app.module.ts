@@ -1,10 +1,11 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CountriesModule } from './countries/countries.module';
 import { TravelPlansModule } from './travel-plans/travel-plans.module';
 import { Country } from './countries/entities/country.entity';
 import { TravelPlan } from './travel-plans/entities/travel-plan.entity';
+import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 
 @Module({
   imports: [
@@ -22,4 +23,10 @@ import { TravelPlan } from './travel-plans/entities/travel-plan.entity';
     TravelPlansModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer
+      .apply(RequestLoggerMiddleware)
+      .forRoutes('countries', 'travel-plans');
+  }
+}

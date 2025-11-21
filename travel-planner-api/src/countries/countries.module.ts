@@ -4,11 +4,13 @@ import { Country } from './entities/country.entity';
 import { CountriesService } from './countries.service';
 import { CountriesController } from './countries.controller';
 import { RestCountriesModule } from '../external/rest-countries/rest-countries.module';
+import { TravelPlan } from '../travel-plans/entities/travel-plan.entity';
+import { DeleteCountryGuard } from './guards/delete-country.guard';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Country]), RestCountriesModule],
+  imports: [TypeOrmModule.forFeature([Country, TravelPlan]), RestCountriesModule],
   controllers: [CountriesController],
-  providers: [CountriesService],
+  providers: [CountriesService, DeleteCountryGuard],
   exports: [CountriesService],
 })
 export class CountriesModule {}

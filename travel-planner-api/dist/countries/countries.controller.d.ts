@@ -5,4 +5,5 @@ export declare class CountriesController {
     constructor(countriesService: CountriesService);
     findAll(): Promise<CountryResponseDto[]>;
     findByCode(code: string): Promise<CountryLookupResponseDto>;
+    remove(code: string): Promise<void>;
 }

@@ -14,7 +14,13 @@ const countries_module_1 = require("./countries/countries.module");
 const travel_plans_module_1 = require("./travel-plans/travel-plans.module");
 const country_entity_1 = require("./countries/entities/country.entity");
 const travel_plan_entity_1 = require("./travel-plans/entities/travel-plan.entity");
+const request_logger_middleware_1 = require("./common/middleware/request-logger.middleware");
 let AppModule = class AppModule {
+    configure(consumer) {
+        consumer
+            .apply(request_logger_middleware_1.RequestLoggerMiddleware)
+            .forRoutes('countries', 'travel-plans');
+    }
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([

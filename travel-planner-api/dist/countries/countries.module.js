@@ -13,14 +13,16 @@ const country_entity_1 = require("./entities/country.entity");
 const countries_service_1 = require("./countries.service");
 const countries_controller_1 = require("./countries.controller");
 const rest_countries_module_1 = require("../external/rest-countries/rest-countries.module");
+const travel_plan_entity_1 = require("../travel-plans/entities/travel-plan.entity");
+const delete_country_guard_1 = require("./guards/delete-country.guard");
 let CountriesModule = class CountriesModule {
 };
 exports.CountriesModule = CountriesModule;
 exports.CountriesModule = CountriesModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([country_entity_1.Country]), rest_countries_module_1.RestCountriesModule],
+        imports: [typeorm_1.TypeOrmModule.forFeature([country_entity_1.Country, travel_plan_entity_1.TravelPlan]), rest_countries_module_1.RestCountriesModule],
         controllers: [countries_controller_1.CountriesController],
-        providers: [countries_service_1.CountriesService],
+        providers: [countries_service_1.CountriesService, delete_country_guard_1.DeleteCountryGuard],
         exports: [countries_service_1.CountriesService],
     })
 ], CountriesModule);

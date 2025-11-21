@@ -19,6 +19,7 @@ API REST construida con NestJS para planificar viajes. Centraliza la informació
    cp .env.example .env
    # DATABASE_PATH indica la ruta del archivo SQLite (por defecto travel-planner.sqlite)
    # REST_COUNTRIES_BASE_URL normalmente no se modifica
+   # COUNTRY_DELETE_TOKEN protege el endpoint DELETE /countries/:code
    ```
 4. Ejecutar la API:
    ```bash
@@ -60,11 +61,14 @@ El módulo `RestCountriesModule` registra un provider (`COUNTRY_INFORMATION_PROV
 |--------|------------------------|----------------------------------------------------|
 | GET    | `/countries`           | Lista todos los países almacenados en SQLite.      |
 | GET    | `/countries/:code`     | Busca por código alpha-3; usa caché + RestCountries|
+| DELETE | `/countries/:code`     | Elimina un país sin planes asociados (token requerido)|
 
 Ejemplos:
 ```bash
 curl http://localhost:3000/countries
 curl http://localhost:3000/countries/COL
+curl -X DELETE http://localhost:3000/countries/COL \
+  -H "x-country-delete-token: <COUNTRY_DELETE_TOKEN>"
 ```
 La respuesta de `GET /countries/:code` incluye `source: "cache" | "external"` que indica el origen de la información.
 
@@ -116,3 +120,12 @@ Pruebas manuales sugeridas:
 4. **Módulo de planes**: valida la entrada, garantiza que el país existe (creándolo vía CountriesModule si hace falta) y persiste el plan.
 
 Con esto, el proyecto cumple los requerimientos del preparcial: API modular, caché local, provider dedicado, DTOs con validación, endpoints CRUD básicos y documentación mínima para evaluación.
+
+## Extensión del parcial (70%)
+
+La funcionalidad se amplió con nuevas capacidades de control y observabilidad. Se añadió `DELETE /countries/:code`, protegido por un guard que exige el header `x-country-delete-token` (valor configurado en `COUNTRY_DELETE_TOKEN`). Antes de eliminar, `CountriesService` confirma que el país exista y que no tenga planes de viaje asociados; si los hay, responde con error y evita inconsistencias. También se registró un middleware (`RequestLoggerMiddleware`) aplicado a `/countries` y `/travel-plans`, que imprime método, ruta, código de respuesta y duración de cada petición.
+
+### Validación de las nuevas funciones
+
+- **Endpoint protegido y guard**: define `COUNTRY_DELETE_TOKEN` en `.env`. Llama `DELETE /countries/COL` sin header y verás un `403 Forbidden`. Repite con `-H "x-country-delete-token: <TOKEN>"`; si hay planes asociados el servicio responde `400`, si no los hay devuelve `204` y borra el país de la caché. Los escenarios también están automatizados en `npm run test:e2e -- --runInBand`.
+- **Middleware de logging**: al ejecutar `npm run start:dev`, cada request a `/countries` o `/travel-plans` genera una línea como `[RequestLoggerMiddleware] GET /countries 200 - 8ms`, mostrando método, ruta, status y tiempo total.

@@ -18,11 +18,14 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const country_entity_1 = require("./entities/country.entity");
 const country_information_provider_1 = require("../external/rest-countries/country-information.provider");
+const travel_plan_entity_1 = require("../travel-plans/entities/travel-plan.entity");
 let CountriesService = class CountriesService {
     countriesRepository;
+    travelPlansRepository;
     countryInformationProvider;
-    constructor(countriesRepository, countryInformationProvider) {
+    constructor(countriesRepository, travelPlansRepository, countryInformationProvider) {
         this.countriesRepository = countriesRepository;
+        this.travelPlansRepository = travelPlansRepository;
         this.countryInformationProvider = countryInformationProvider;
     }
     findAll() {
@@ -60,6 +63,22 @@ let CountriesService = class CountriesService {
         const result = await this.findByAlpha3(alpha3Code);
         return result.country;
     }
+    async deleteByAlpha3(alpha3Code) {
+        const normalizedCode = this.normalizeCode(alpha3Code);
+        const country = await this.countriesRepository.findOne({
+            where: { code: normalizedCode },
+        });
+        if (!country) {
+            throw new common_1.NotFoundException(`Country with code ${normalizedCode} was not found`);
+        }
+        const existingPlans = await this.travelPlansRepository.count({
+            where: { countryCode: normalizedCode },
+        });
+        if (existingPlans > 0) {
+            throw new common_1.BadRequestException(`Country ${normalizedCode} cannot be deleted because it has associated travel plans`);
+        }
+        await this.countriesRepository.remove(country);
+    }
     normalizeCode(code) {
         return code.trim().toUpperCase();
     }
@@ -68,7 +87,9 @@ exports.CountriesService = CountriesService;
 exports.CountriesService = CountriesService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(country_entity_1.Country)),
-    __param(1, (0, common_1.Inject)(country_information_provider_1.COUNTRY_INFORMATION_PROVIDER)),
-    __metadata("design:paramtypes", [typeorm_2.Repository, Object])
+    __param(1, (0, typeorm_1.InjectRepository)(travel_plan_entity_1.TravelPlan)),
+    __param(2, (0, common_1.Inject)(country_information_provider_1.COUNTRY_INFORMATION_PROVIDER)),
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository, Object])
 ], CountriesService);
 //# sourceMappingURL=countries.service.js.map

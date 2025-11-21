@@ -16,6 +16,7 @@ exports.CountriesController = void 0;
 const common_1 = require("@nestjs/common");
 const countries_service_1 = require("./countries.service");
 const country_response_dto_1 = require("./dto/country-response.dto");
+const delete_country_guard_1 = require("./guards/delete-country.guard");
 let CountriesController = class CountriesController {
     countriesService;
     constructor(countriesService) {
@@ -28,6 +29,9 @@ let CountriesController = class CountriesController {
     async findByCode(code) {
         const result = await this.countriesService.findByAlpha3(code);
         return country_response_dto_1.CountryLookupResponseDto.fromLookup(result.country, result.source);
+    }
+    async remove(code) {
+        await this.countriesService.deleteByAlpha3(code);
     }
 };
 exports.CountriesController = CountriesController;
@@ -44,6 +48,15 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], CountriesController.prototype, "findByCode", null);
+__decorate([
+    (0, common_1.Delete)(':code'),
+    (0, common_1.UseGuards)(delete_country_guard_1.DeleteCountryGuard),
+    (0, common_1.HttpCode)(204),
+    __param(0, (0, common_1.Param)('code')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CountriesController.prototype, "remove", null);
 exports.CountriesController = CountriesController = __decorate([
     (0, common_1.Controller)('countries'),
     __metadata("design:paramtypes", [countries_service_1.CountriesService])

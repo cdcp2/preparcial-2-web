@@ -30,10 +30,12 @@ class FakeCountryInformationProvider implements CountryInformationProvider {
 
 describe('Travel Planner API (e2e)', () => {
   let app: INestApplication<App>;
+  let server: any;
   let fakeProvider: FakeCountryInformationProvider;
 
   beforeEach(async () => {
     process.env.DATABASE_PATH = ':memory:';
+    process.env.COUNTRY_DELETE_TOKEN = 'test-token';
     fakeProvider = new FakeCountryInformationProvider();
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -51,6 +53,7 @@ describe('Travel Planner API (e2e)', () => {
       }),
     );
     await app.init();
+    server = app.getHttpAdapter().getInstance();
   });
 
   afterEach(async () => {
@@ -58,13 +61,13 @@ describe('Travel Planner API (e2e)', () => {
   });
 
   it('returns an empty list of countries by default', async () => {
-    const response = await request(app.getHttpServer()).get('/countries');
+    const response = await request(server).get('/countries');
     expect(response.status).toBe(200);
     expect(response.body).toEqual([]);
   });
 
   it('fetches a country from the provider only once and caches it afterwards', async () => {
-    const firstResponse = await request(app.getHttpServer()).get(
+    const firstResponse = await request(server).get(
       '/countries/COL',
     );
     expect(firstResponse.status).toBe(200);
@@ -74,7 +77,7 @@ describe('Travel Planner API (e2e)', () => {
     });
     expect(fakeProvider.findByAlpha3).toHaveBeenCalledTimes(1);
 
-    const secondResponse = await request(app.getHttpServer()).get(
+    const secondResponse = await request(server).get(
       '/countries/COL',
     );
     expect(secondResponse.status).toBe(200);
@@ -86,9 +89,9 @@ describe('Travel Planner API (e2e)', () => {
   });
 
   it('creates and retrieves travel plans associated to a cached country', async () => {
-    await request(app.getHttpServer()).get('/countries/COL');
+    await request(server).get('/countries/COL');
 
-    const createResponse = await request(app.getHttpServer())
+    const createResponse = await request(server)
       .post('/travel-plans')
       .send({
         countryCode: 'COL',
@@ -105,14 +108,14 @@ describe('Travel Planner API (e2e)', () => {
       country: { code: 'COL' },
     });
 
-    const listResponse = await request(app.getHttpServer()).get(
+    const listResponse = await request(server).get(
       '/travel-plans',
     );
     expect(listResponse.status).toBe(200);
     expect(listResponse.body).toHaveLength(1);
 
     const travelPlanId = createResponse.body.id;
-    const detailResponse = await request(app.getHttpServer()).get(
+    const detailResponse = await request(server).get(
       `/travel-plans/${travelPlanId}`,
     );
     expect(detailResponse.status).toBe(200);
@@ -123,7 +126,7 @@ describe('Travel Planner API (e2e)', () => {
   });
 
   it('validates travel plan payloads', async () => {
-    const response = await request(app.getHttpServer())
+    const response = await request(server)
       .post('/travel-plans')
       .send({
         countryCode: 'C',
@@ -132,5 +135,44 @@ describe('Travel Planner API (e2e)', () => {
       });
 
     expect(response.status).toBe(400);
+  });
+
+  it('requires the deletion token to remove a country', async () => {
+    await request(server).get('/countries/COL');
+
+    const response = await request(server).delete(
+      '/countries/COL',
+    );
+    expect(response.status).toBe(403);
+  });
+
+  it('prevents deleting countries with travel plans', async () => {
+    await request(server).get('/countries/COL');
+    await request(server).post('/travel-plans').send({
+      countryCode: 'COL',
+      title: 'Viaje',
+      startDate: '2025-02-01',
+      endDate: '2025-02-05',
+    });
+
+    const response = await request(server)
+      .delete('/countries/COL')
+      .set('x-country-delete-token', 'test-token');
+    expect(response.status).toBe(400);
+  });
+
+  it('deletes a country without plans when authorized', async () => {
+    await request(server).get('/countries/COL');
+
+    const deleteResponse = await request(server)
+      .delete('/countries/COL')
+      .set('x-country-delete-token', 'test-token');
+    expect(deleteResponse.status).toBe(204);
+
+    const lookupResponse = await request(server).get(
+      '/countries/COL',
+    );
+    expect(lookupResponse.status).toBe(200);
+    expect(fakeProvider.findByAlpha3).toHaveBeenCalledTimes(2);
   });
 });
